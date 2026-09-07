@@ -9,6 +9,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Reassemble split base APK
+        run: |
+          cat apks/com.devstacktools.bigcalc.apk.part* > apks/com.devstacktools.bigcalc.apk
+          rm apks/com.devstacktools.bigcalc.apk.part*
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
