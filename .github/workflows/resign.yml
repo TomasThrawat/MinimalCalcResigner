@@ -1,0 +1,49 @@
+name: Resign APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  resign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install build-tools
+        run: sdkmanager --install "build-tools;34.0.0"
+
+      - name: Generate new signing key
+        run: |
+          keytool -genkeypair -v \
+            -keystore run.jks -alias runkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android123 -keypass android123 \
+            -dname "CN=Build ${{ github.run_id }}, OU=CI, O=CI, L=City, S=State, C=EG"
+
+      - name: Zipalign and sign splits
+        run: |
+          BT="$ANDROID_HOME/build-tools/34.0.0"
+          mkdir -p signed
+          for f in apks/*.apk; do
+            name=$(basename "$f" .apk)
+            "$BT/zipalign" -v -p 4 "$f" "signed/${name}.apk"
+            "$BT/apksigner" sign --ks run.jks --ks-key-alias runkey \
+              --ks-pass pass:android123 --key-pass pass:android123 \
+              "signed/${name}.apk"
+            "$BT/apksigner" verify "signed/${name}.apk"
+          done
+
+      - name: Upload signed APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-apks-${{ github.run_id }}
+          path: signed/*.apk
