@@ -41,15 +41,9 @@ jobs:
           mv decoded_base/smali/com/devstacktools/bigcalc decoded_base/smali/com/write/calc
           rmdir decoded_base/smali/com/devstacktools 2>/dev/null || true
 
-          python3 - <<'PYEOF'
-import re
-p = "decoded_base/AndroidManifest.xml"
-c = open(p, encoding="utf-8").read()
-c = re.sub(r'<activity android:exported="false" android:name="com\.pairip\.licensecheck\.LicenseActivity"/>\s*', '', c)
-c = re.sub(r'<provider android:authorities="com\.write\.calc\.com\.pairip\.licensecheck\.LicenseContentProvider" android:exported="false" android:name="com\.pairip\.licensecheck\.LicenseContentProvider"/>\s*', '', c)
-c = re.sub(r'<uses-permission android:name="com\.android\.vending\.CHECK_LICENSE"/>\s*', '', c)
-open(p, "w", encoding="utf-8").write(c)
-PYEOF
+          sed -i -E 's#<activity android:exported="false" android:name="com\.pairip\.licensecheck\.LicenseActivity"/>##' decoded_base/AndroidManifest.xml
+          sed -i -E 's#<provider android:authorities="com\.write\.calc\.com\.pairip\.licensecheck\.LicenseContentProvider" android:exported="false" android:name="com\.pairip\.licensecheck\.LicenseContentProvider"/>##' decoded_base/AndroidManifest.xml
+          sed -i -E 's#<uses-permission android:name="com\.android\.vending\.CHECK_LICENSE"/>##' decoded_base/AndroidManifest.xml
 
           rm -rf decoded_base/smali/com/pairip
 
