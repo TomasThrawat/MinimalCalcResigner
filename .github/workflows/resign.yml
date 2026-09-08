@@ -20,6 +20,52 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Download apktool
+        run: |
+          curl -sL -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar
+
+      - name: Patch base APK (strip Pairip license/integrity check, rename package + app name)
+        run: |
+          java -jar apktool.jar d apks/com.devstacktools.bigcalc.apk -o decoded_base -f
+
+          OLD_PKG="com.devstacktools.bigcalc"
+          NEW_PKG="com.write.calc"
+          OLD_SLASH="com/devstacktools/bigcalc"
+          NEW_SLASH="com/write/calc"
+
+          grep -rl "$OLD_SLASH\|$OLD_PKG" decoded_base --include="*.smali" --include="*.xml" | while read -r f; do
+            sed -i "s#$OLD_SLASH#$NEW_SLASH#g; s#$OLD_PKG#$NEW_PKG#g" "$f"
+          done
+
+          mkdir -p decoded_base/smali/com/write
+          mv decoded_base/smali/com/devstacktools/bigcalc decoded_base/smali/com/write/calc
+          rmdir decoded_base/smali/com/devstacktools 2>/dev/null || true
+
+          python3 - <<'PYEOF'
+import re
+p = "decoded_base/AndroidManifest.xml"
+c = open(p, encoding="utf-8").read()
+c = re.sub(r'<activity android:exported="false" android:name="com\.pairip\.licensecheck\.LicenseActivity"/>\s*', '', c)
+c = re.sub(r'<provider android:authorities="com\.write\.calc\.com\.pairip\.licensecheck\.LicenseContentProvider" android:exported="false" android:name="com\.pairip\.licensecheck\.LicenseContentProvider"/>\s*', '', c)
+c = re.sub(r'<uses-permission android:name="com\.android\.vending\.CHECK_LICENSE"/>\s*', '', c)
+open(p, "w", encoding="utf-8").write(c)
+PYEOF
+
+          rm -rf decoded_base/smali/com/pairip
+
+          sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">calc</string>#' decoded_base/res/values/strings.xml
+          sed -i 's#<string name="app_label_drawer">[^<]*</string>#<string name="app_label_drawer">calc</string>#' decoded_base/res/values/strings.xml
+
+          java -jar apktool.jar b decoded_base -o apks/com.devstacktools.bigcalc.apk
+
+      - name: Patch config splits (rename package)
+        run: |
+          for split in arm64_v8a en zh; do
+            java -jar apktool.jar d "apks/config.${split}.apk" -o "decoded_${split}" -f
+            sed -i 's#com\.devstacktools\.bigcalc#com.write.calc#g' "decoded_${split}/AndroidManifest.xml"
+            java -jar apktool.jar b "decoded_${split}" -o "apks/config.${split}.apk"
+          done
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
